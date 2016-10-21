@@ -153,43 +153,67 @@ RSA *generate_rsa_keys(unsigned char **public_key, unsigned char **private_key) 
  * @return: the length of the PEM encoding
  */
 unsigned int rsa_publickey_to_pem(RSA *key, unsigned char **out) {
+    //  This creats a source sink BIO to store the public key
     BIO *pubKey = BIO_new(BIO_s_mem());
 
+    //  this writes the RSA key into the BIO in PEM format
     PEM_write_bio_RSA_PUBKEY(pubKey, key);
 
-    unsigned char line[65];
+    unsigned char line[100];
     int len = 0;
     unsigned char *pem = NULL;
     unsigned char *new_pem = NULL;
 
+    //  Have to do the first line because the pubkey BIO seems to get junk bytes at the beginning
+    //  don't know why, but this is an easy fix
     if (!BIO_eof(pubKey)) {
-        BIO_gets(pubKey, line, sizeof *pubKey);
-
-        len += strlen(line);
-
-        new_pem = (unsigned char *)realloc(pem, len*sizeof(unsigned char));
-        if (!new_pem) {
-            printf("realloc failed at length:%d\n", len);
-        } else {
-            memcpy(new_pem, "-----BEGIN PUBLIC KEY-----\n", (size_t)len);
-            pem = new_pem;
+        //  reads one line up to pubKey bytes and puts it into line
+        if(!BIO_gets(pubKey, line, sizeof *pubKey)) {
+            printf("BIO_gets for reading the public key pem to a string failed\n");
+            exit(EXIT_FAILURE);
         }
-    }
-
-    while (!BIO_eof(pubKey)) {
-        BIO_gets(pubKey, line, sizeof *pubKey);
 
         //  current length of PEM (including newlines)
         len += strlen(line);
 
-        new_pem = (unsigned char *)realloc(pem, len*sizeof(unsigned char));
-        if (!new_pem) {
+        //  initialize the first allocation of memory for pem and new_pem
+        if (!(new_pem = (unsigned char *)calloc(len, sizeof(unsigned char)))) {
+            printf("calloc failed at length:%d\n", len);
+            exit(EXIT_FAILURE);
+        }
+
+        memcpy(new_pem, "-----BEGIN PUBLIC KEY-----\n", (size_t)len);
+        pem = new_pem;
+
+        //  These lines are for debugging, show line lengths
+        printf ("%s", line);
+        printf ("length of line: %u\n", strlen(line));
+        printf ("total length: %u %u\n", len, strlen(pem));
+    }
+
+    while (!BIO_eof(pubKey)) {
+        //  reads one line up to pubKey bytes and puts it into line
+        if (!BIO_gets(pubKey, line, sizeof *pubKey)) {
+            printf("BIO_gets for reading the public key pem to a string failed\n");
+            exit(EXIT_FAILURE);
+        }
+
+        //  current length of PEM (including newlines)
+        len += strlen(line);
+
+        //  copy the data of pem over to new_pem but with the increased length for the new line
+        if (!(new_pem = (unsigned char *)realloc(pem, len*sizeof(unsigned char)))) {
             printf("realloc failed at length:%d\n", len);
             exit(EXIT_FAILURE);
-        } else {
-            memcpy(new_pem, strcat(new_pem, line), (size_t)len);
-            pem = new_pem;
         }
+
+        memcpy(new_pem, strcat(new_pem, line), (size_t)len);
+        pem = new_pem;
+
+        //  These lines are for debugging, show line lengths
+        printf ("%s", line);
+        printf ("length of line: %u\n", strlen(line));
+        printf ("total length: %u %u\n", len, strlen(pem));
     }
 
     *out = pem;
@@ -205,43 +229,78 @@ unsigned int rsa_publickey_to_pem(RSA *key, unsigned char **out) {
  * @return: the length of the PEM encoding
  */
 unsigned int rsa_privatekey_to_pem(RSA *key, unsigned char **out) {
-    BIO *pubKey = BIO_new(BIO_s_mem());
+    //  This creats a source sink BIO to store the private key
+    BIO *privKey = BIO_new(BIO_s_mem());
 
-    PEM_write_bio_RSAPrivateKey(pubKey, key, NULL, NULL, 0, 0, NULL);
+    //  this writes the RSA key into the BIO in PEM format
+    PEM_write_bio_RSAPrivateKey(privKey, key, NULL, NULL, 0, 0, NULL);
 
-    unsigned char line[65];
+    unsigned char line[100];
     int len = 0;
     unsigned char *pem = NULL;
     unsigned char *new_pem = NULL;
 
-    if (!BIO_eof(pubKey)) {
-        BIO_gets(pubKey, line, sizeof *pubKey);
-
-        len += strlen(line);
-
-        new_pem = (unsigned char *)realloc(pem, len*sizeof(unsigned char));
-        if (!new_pem) {
-            printf("realloc failed at length:%d\n", len);
-        } else {
-            memcpy(new_pem, "-----BEGIN PRIVATE KEY-----\n", (size_t)len);
-            pem = new_pem;
+    //  Have to do the first line because the pubkey BIO seems to get junk bytes at the beginning
+    //  don't know why, but this is an easy fix
+    if (!BIO_eof(privKey)) {
+        //  reads one line up to pubKey bytes and puts it into line
+        if (!BIO_gets(privKey, line, sizeof *privKey)) {
+            printf("BIO_gets for reading the private key pem to a string failed\n");
+            exit(EXIT_FAILURE);
         }
-    }
-
-    while (!BIO_eof(pubKey)) {
-        BIO_gets(pubKey, line, sizeof *pubKey);
 
         //  current length of PEM (including newlines)
         len += strlen(line);
 
-        new_pem = (unsigned char *)realloc(pem, len*sizeof(unsigned char));
-        if (!new_pem) {
+        //  create the first allocation of data, and fill all data with 0's
+        if (!(new_pem = (unsigned char *)calloc(len, sizeof(unsigned char)))) {
+            printf("calloc failed at length:%d\n", len);
+            exit(EXIT_FAILURE);
+        } 
+
+        //memcpy(new_pem, "-----BEGIN RSA PRIVATE KEY-----\n", (size_t)len);
+        memcpy(new_pem, line, (size_t)len);
+        pem = new_pem;
+
+        //  These lines are for debugging, show line lengths
+        /*
+        printf ("%s", line);
+        printf ("length of line: %u\n", strlen(line));
+        printf ("total length: %u %u\n", len, strlen(pem));
+        */
+    }
+
+    while (!BIO_eof(privKey)) {
+        //  reads one line up to pubKey bytes and puts it into line
+        if (!BIO_gets(privKey, line, sizeof *privKey)) {
+            printf("BIO_gets for reading the private key pem to a string failed\n");
+            exit(EXIT_FAILURE);
+        }
+
+        //  current length of PEM (including newlines)
+        len += strlen(line);
+
+        //  TODO somehow new_pem malloc usable size is set to 0?
+        //  so this normally the len and malloc_usable_size(new_pem) is off by one
+        //  meaning new_pem has 1 extra byte more than len
+        //  but when they have the same which happens at 552 bytes then something goes wrong
+        //  when memcpy moves the data over to new_pem
+
+        //  copy the data of pem over to new_pem but with the increased length for the new line
+        if (!(new_pem = (unsigned char *)realloc(pem, (len + 1)*sizeof(unsigned char)))) {
             printf("realloc failed at length:%d\n", len);
             exit(EXIT_FAILURE);
-        } else {
-            memcpy(new_pem, strcat(new_pem, line), (size_t)len);
-            pem = new_pem;
         }
+
+        memcpy(new_pem, strcat(new_pem, line), (size_t)len);
+        pem = new_pem;
+
+        //  These lines are for debugging, show line lengths
+        /*
+        printf ("%s", line);
+        printf ("length of line: %u\n", strlen(line));
+        printf ("total length: %u %u\n", len, strlen(pem));
+        */
     }
 
     *out = pem;
