@@ -66,7 +66,6 @@ int main() {
     unsigned char *encrypted_message = (unsigned char *)malloc(kBits);
 
     printf ("beginning rsa encryption\n");
-    //  TODO program is failing here
 
     RSA *rsa_pubkey = rsa_pem_to_publickey(rsa_pubkey_pem);
 
@@ -105,6 +104,8 @@ int main() {
     unsigned char *aes_iv = generate_aes_iv();
 
     printf ("AES key and iv generated\n");
+    printf ("key: %s\n", aes_key);
+    printf ("iv: %s\n", aes_iv);
 
     unsigned char *aes_encrypted_message = (unsigned char *)malloc(plaintext_length*(unsigned char) + AES_BLOCK_SIZE);
 
@@ -182,13 +183,15 @@ unsigned int rsa_publickey_to_pem(RSA *key, unsigned char **out) {
             exit(EXIT_FAILURE);
         }
 
-        memcpy(new_pem, "-----BEGIN PUBLIC KEY-----\n", (size_t)len);
+        memcpy(new_pem, line, (size_t)len);
         pem = new_pem;
 
         //  These lines are for debugging, show line lengths
+        /*
         printf ("%s", line);
         printf ("length of line: %u\n", strlen(line));
         printf ("total length: %u %u\n", len, strlen(pem));
+        */
     }
 
     while (!BIO_eof(pubKey)) {
@@ -211,9 +214,11 @@ unsigned int rsa_publickey_to_pem(RSA *key, unsigned char **out) {
         pem = new_pem;
 
         //  These lines are for debugging, show line lengths
+        /*
         printf ("%s", line);
         printf ("length of line: %u\n", strlen(line));
         printf ("total length: %u %u\n", len, strlen(pem));
+        */
     }
 
     *out = pem;
@@ -225,7 +230,6 @@ unsigned int rsa_publickey_to_pem(RSA *key, unsigned char **out) {
  * Takes in an RSA object and PEM encodes it in out
  * @param key: the RSA private key
  * @param out: the string the PEM encoding goes to
- * @param pem_password: the password to unlock the pem encoding
  * @return: the length of the PEM encoding
  */
 unsigned int rsa_privatekey_to_pem(RSA *key, unsigned char **out) {
@@ -279,12 +283,6 @@ unsigned int rsa_privatekey_to_pem(RSA *key, unsigned char **out) {
 
         //  current length of PEM (including newlines)
         len += strlen(line);
-
-        //  TODO somehow new_pem malloc usable size is set to 0?
-        //  so this normally the len and malloc_usable_size(new_pem) is off by one
-        //  meaning new_pem has 1 extra byte more than len
-        //  but when they have the same which happens at 552 bytes then something goes wrong
-        //  when memcpy moves the data over to new_pem
 
         //  copy the data of pem over to new_pem but with the increased length for the new line
         if (!(new_pem = (unsigned char *)realloc(pem, (len + 1)*sizeof(unsigned char)))) {
